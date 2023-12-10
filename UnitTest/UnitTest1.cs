@@ -7,6 +7,65 @@ namespace UnitTest            // Тестовий проєкт "відзеркалює"
     public class HelperTest   // додаючи "Test"
     {
         [TestMethod]
+        public void ContainsAttributesTest()
+        {
+            Helper helper = new();
+            Assert.IsNotNull(helper, "new Helper() should not be null");  
+
+            Assert.IsTrue(helper.ContainsAttributes("<div style=\"\"></div>"));
+            Assert.IsTrue(helper.ContainsAttributes("<i style=\"code\" ></div>"));
+            Assert.IsTrue(helper.ContainsAttributes("<i style=\"code\"  required ></div>"));
+            Assert.IsTrue(helper.ContainsAttributes("<i style='code'  required></div>"));
+            Assert.IsTrue(helper.ContainsAttributes("<i required style=\"code\" ></div>"));
+            Assert.IsTrue(helper.ContainsAttributes("<i required style=\"code\"></div>"));
+            Assert.IsTrue(helper.ContainsAttributes("<img onload=\"dangerCode()\" src=\"puc.png\"/>"));
+            Assert.IsTrue(helper.ContainsAttributes("<img width=100 />"));
+            Assert.IsTrue(helper.ContainsAttributes("<img width=100/>"));
+            Assert.IsTrue(helper.ContainsAttributes("<img width=100>"));
+            Assert.IsTrue(helper.ContainsAttributes("<img width=500 required/>"));
+            Assert.IsTrue(helper.ContainsAttributes("<img      width=500    required   />"));
+
+            Assert.IsFalse(helper.ContainsAttributes("<div></div>"));
+            Assert.IsFalse(helper.ContainsAttributes("<div ></div>"));
+            Assert.IsFalse(helper.ContainsAttributes("<br/>"));
+            Assert.IsFalse(helper.ContainsAttributes("<br />"));
+            Assert.IsFalse(helper.ContainsAttributes("<div required ></div>"));
+            Assert.IsFalse(helper.ContainsAttributes("<div required>x=5</div>"));
+            Assert.IsFalse(helper.ContainsAttributes("<div required checked></div>"));
+            Assert.IsFalse(helper.ContainsAttributes("<div>2=2</div>"));
+        }
+
+        [TestMethod]
+        public void EscapeHtmlTest()
+        {
+            Helper helper = new();
+
+            Assert.IsNotNull(helper, "new Helper() should not be null");
+            Assert.IsNotNull(helper.EscapeHtml(">"), "EscapeHtml should not return null!");
+            Assert.IsNotNull(helper.EscapeHtml("<"), "EscapeHtml should not return null!");
+
+            Assert.AreEqual(
+                "&lt;div class=\"container\"&gt;&lt;p&gt;Hello, &amp; world!&lt;/p&gt;&lt;/div&gt;",
+                helper.EscapeHtml("<div class=\"container\"><p>Hello, & world!</p></div>")
+            );
+            Assert.AreEqual("&lt;Hello world!&gt;", helper.EscapeHtml("<Hello world!>"));
+            Assert.AreEqual("&lt;p&gt;Hello &amp; Goodbye&lt;/p&gt;", helper.EscapeHtml("<p>Hello & Goodbye</p>"));
+            Assert.AreEqual("", helper.EscapeHtml(""));
+        }
+
+        [TestMethod]
+        public void EscapeHtmlExceptionTest()
+        {
+            Helper helper = new();
+            Assert.IsNotNull(helper, "new Helper() should not be null"); 
+
+            var ex = Assert.ThrowsException<ArgumentException>(  
+                () => helper.EscapeHtml(null!)
+            );
+            Assert.AreEqual("Argument 'html' is null", ex.Message);
+        }
+
+        [TestMethod]
         public void FinalizeTest()
         {
             Helper helper = new Helper();
@@ -132,19 +191,27 @@ namespace UnitTest            // Тестовий проєкт "відзеркалює"
         public void CombineUrlMultiTest()
         {
             Helper helper = new();
-            Dictionary<String[], String> testCases = new()
+
+            Dictionary<string[], string> testCases = new()
             {
-                { new[] { "/home",  "/index", "/123"  }, "/home/index/123"  },
-                { new[] { "/shop/", "/cart/", "123/"  }, "/shop/cart/123"   },
-                { new[] { "auth/",  "logout", "/123/" }, "/auth/logout/123" },
-                { new[] { "forum",  "topic/", "123"   }, "/forum/topic/123" },
+                { new[] { "/home", "/index", "/gmail" }, "/home/index/gmail" },
+                { new[] { "/shop", "/cart/", "com" }, "/shop/cart/com" },
+                { new[] { "auth/", "logout" }, "/auth/logout" },
+                { new[] { "forum", "topic/", "/com/" }, "/forum/topic/com" },
+                { new[] { "//forum////", "topic////", "///com" }, "/forum/topic/com" },
+                { new[] { "forum", "topic", "com" }, "/forum/topic/com" },
+                { new[] { "/forum/", "/topic///////////", "//com////////////////" }, "/forum/topic/com" },
+                { new[] { "/shop", "/cart", "/user", "..", "/123" }, "/shop/cart/123" },
+                { new[] { "/shop///", "///cart", "user", "..", "////123///" }, "/shop/cart/123" },
+                { new[] { "/shop///", "///cart", "user", "..", "////123///", "456" }, "/shop/cart/123/456" },
+                { new[] { "/shop///", "///cart", "..", "user//", "///123", "456//" }, "/shop/user/123/456" },
             };
             foreach (var testCase in testCases)
             {
                 Assert.AreEqual(
-                    testCase.Value,
-                    helper.CombineUrl(testCase.Key),
-                    $"{testCase.Value} -- {testCase.Key[0]} + {testCase.Key[1]}"
+                    testCase.Value, 
+                    helper.CombineUrl(testCase.Key),  
+                    $"{testCase.Key[0]} + {testCase.Key[1]}" 
                 );
             }
         }
@@ -152,25 +219,46 @@ namespace UnitTest            // Тестовий проєкт "відзеркалює"
         [TestMethod]
         public void CombineUrlExceptionTest()
         {
-            // /home     null     1) /home  2) Exception ??
-            // Не треба виключення, у такому разі логічно ігнорувати null
             Helper helper = new();
-            // користуємось тією особливістю, що поява виключення 
-            // сама по собі провалить тест, додаткових Assert-ів не потрібно
-            Assert.AreEqual("/home", helper.CombineUrl("/home", null!));
 
-            // null!, null! -- Exception, шлях у нікуди не може валідним
+            Assert.AreEqual("/home", helper.CombineUrl("/home", null!));
+            Assert.AreEqual("/home/path", helper.CombineUrl("/home", "///path//", null!));
+            Assert.AreEqual("/home/user", helper.CombineUrl("/home", "///path//", "..", "user//", null!));
+
             var ex = Assert.ThrowsException<ArgumentException>(
                 () => helper.CombineUrl(null!, null!)
             );
             Assert.AreEqual("All arguments are null", ex.Message);
 
-            // null  /subsection  -- наявність підкатегорії без категорії - Exception
-            Assert.AreEqual(
-                "Non-Null argument after Null one",
-                Assert.ThrowsException<ArgumentException>(
-                    () => helper.CombineUrl(null!, "/subsection")
-                ).Message);
+            ex = Assert.ThrowsException<ArgumentException>(
+                () => helper.CombineUrl(null!, null!, null!, null!, null!, null!)
+            );
+            Assert.AreEqual("All arguments are null", ex.Message);
+
+            ex = Assert.ThrowsException<ArgumentException>(
+                () => helper.CombineUrl()
+            );
+            Assert.AreEqual("Parts is empty", ex.Message);
+
+            var ex2 = Assert.ThrowsException<NullReferenceException>(
+                () => helper.CombineUrl(null!)
+            );
+            Assert.AreEqual("Parts is null", ex2.Message);
+
+            var ex3 = Assert.ThrowsException<ArgumentException>(
+                () => helper.CombineUrl(null!, "/subsection")
+            );
+            Assert.AreEqual("Non-Null argument after Null one", ex3.Message);
+
+            ex3 = Assert.ThrowsException<ArgumentException>(
+                () => helper.CombineUrl("/path", null!, "/subsection")
+            );
+            Assert.AreEqual("Non-Null argument after Null one", ex3.Message);
+
+            ex3 = Assert.ThrowsException<ArgumentException>(
+                () => helper.CombineUrl("/path", "/path2", null!, "/subsection")
+            );
+            Assert.AreEqual("Non-Null argument after Null one", ex3.Message);
         }
     }
 }

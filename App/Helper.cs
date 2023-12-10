@@ -3,37 +3,71 @@ using System.Collections.Generic;
 using System.Diagnostics.SymbolStore;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace App
 {
     public class Helper
     {
-        public String CombineUrl(params String[] parts)
+        public bool ContainsAttributes(String html)
         {
-            StringBuilder sb = new();
-            bool wasNull = false;
-            foreach (String part in parts)
+            string pattern = @"<(\w+\s+[^=>])*(\w+=[^>]+)+>";
+            Regex regex = new Regex(pattern, RegexOptions.IgnoreCase);
+            return regex.IsMatch(html);
+        }
+
+        // заменяет активные HTML символы на сущность
+        public string EscapeHtml(string html, Dictionary<string, string>? map = null)
+        {
+            if (html is null) { throw new ArgumentException("Argument 'html' is null"); }
+            if (html.Length == 0) { return html; }
+
+            Dictionary<string, string> htmlSpecSymbols = map ?? new()  // если map null, то создаётся новый словарь
             {
-                if (part is null)
+                { "&", "&amp;" },
+                { "<", "&lt;" },
+                { ">", "&gt;" }
+            };
+            foreach (var pair in htmlSpecSymbols)
+            {
+                html = html.Replace(pair.Key, pair.Value);
+            }
+            return html;
+        }
+
+        // объединяет элементы массива в адресную строку
+        public string CombineUrl(params string[] parts)
+        {
+            if (parts is null) { throw new NullReferenceException("Parts is null"); }
+            if (parts.Length == 0) { throw new ArgumentException("Parts is empty"); }
+
+            StringBuilder result = new();  // будет много работы с добавлением строк, поэтому используем StringBuilder
+            string temp;
+            bool wasNull = false;  // для проверки, что если после null идёт строка, то это ошибка
+            for (int i = 0; i < parts.Length; i++)
+            {
+                if (parts[i] is null)
                 {
-                    wasNull = true;
+                    wasNull = true;  // устанавливаем флаг
                     continue;
                 }
                 if (wasNull)
                 {
                     throw new ArgumentException("Non-Null argument after Null one");
                 }
-                String p = part;
-                if (!p.StartsWith('/')) p = '/' + p;
-                if (p.EndsWith("/")) p = p[..^1];
-                sb.Append(p);
+
+                if (parts[i] == "..") { continue; }  // игнорируем строку
+                temp = "/" + parts[i].TrimStart('/').TrimEnd('/');  // удаляем все '/' и добавляем один в начало
+
+                if ((i != parts.Length - 1) && parts[i + 1] == "..") { continue; }  // если строка не последняя в массиве и следующая строка это '..'
+                result.Append(temp);
             }
-            if(sb.Length == 0)
+            if (result.Length == 0)
             {
                 throw new ArgumentException("All arguments are null");
             }
-            return sb.ToString();
+            return result.ToString();
         }
 
         public String Ellipsis(String input, int len)
