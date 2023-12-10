@@ -41,7 +41,15 @@ namespace UnitTest            // Тестовий проєкт "відзеркалює"
             Assert.AreEqual(
                 "Hello!",
                 helper.Finalize("Hello!"));
-
+            Assert.AreEqual(
+                "My nytraus get hsaf.",
+                helper.Finalize("My nytraus get hsaf"));
+            Assert.AreEqual(
+                "Aligh Html!",
+                helper.Finalize("Aligh Html!"));
+            Assert.AreEqual(
+                "Nuclear Reactor?",
+                helper.Finalize("Nuclear Reactor?"));
         }
 
         [TestMethod]
